@@ -20,12 +20,12 @@
 import argparse
 import logging
 import os
-import subprocess
 import sys
 import yaml
+from fabric.api import env, execute, hide, parallel, sudo
 
-from fabric.api import env, execute, hide, parallel, put, sudo
-from swifttool.ring_defintion import SwiftRingsDefinition
+from swifttool.ring_defintion import ringsdef_helper
+from swifttool.manager import capman_helper
 
 LOG = logging.getLogger(__name__)
 
@@ -42,46 +42,60 @@ def _setup_logger(level=logging.INFO):
 
 
 @parallel
-def _fab_copy_swift_directory(local_files, remote_dir):
-    put(local_files, remote_dir, mirror_local_mode=True)
-
-
-@parallel
 def _fab_start_swift_services():
     with hide('running', 'stdout', 'stderr'):
         sudo("swift-init start all", pty=False, shell=False)
 
 
-def bootstrap(args):
-    rc = 0
-    if not os.path.exists(args.config):
+def scaleup(args):
+    _manage(args)
+
+
+def scaledown(args):
+    _manage(args, False)
+
+
+def _manage(args, scaleup=True):
+    if not os.path.isfile(args.config):
         raise Exception("Could not find confguration file '%s'" % args.config)
+    capman_helper(args.iterations, args.config, args.meta, args.outdir,
+                  scaleup)
 
-    config = yaml.load(open(args.config, 'r'))
-    ringsdef = SwiftRingsDefinition(config)
 
-    build_script = ringsdef.generate_script(outdir=args.outdir,
-                                            meta=args.meta)
-    subprocess.call(build_script)
-
-    tempfiles = os.path.join(ringsdef.workspace, "*")
-    execute(_fab_copy_swift_directory, tempfiles, args.outdir,
-            hosts=ringsdef.nodes)
-    execute(_fab_start_swift_services, hosts=ringsdef.nodes)
+def bootstrap(args):
+    if not os.path.isfile(args.config):
+        raise Exception("Could not find confguration file '%s'" % args.config)
+    with open(args.config, 'r') as f:
+        config = yaml.load(f)
+    ringhosts = ringsdef_helper(config, args.meta, args.outdir)
+    execute(_fab_start_swift_services, hosts=ringhosts)
 
 
 def main():
     parser = argparse.ArgumentParser(description='Tool to modify swift config')
-    parser.add_argument('-d', '--debug', action='store_true')
-    parser.add_argument('-i', dest='keyfile')
-    parser.add_argument('-u', dest='user')
+    parser.add_argument('-d', '--debug', action='store_true',
+                        help="display debug messages")
+    parser.add_argument('-i', dest='keyfile', help="ssh key to be used")
+    parser.add_argument('-u', dest='user', help="user name for ssh")
+    parser.add_argument('--config', default='/etc/swift/ring_definition.yml',
+                        help="swift ring configuration file")
+    parser.add_argument('--outdir', default='/etc/swift',
+                        help="output directory for swift rings")
+    parser.add_argument('--meta', default=None, help="metadata for session")
 
     subparsers = parser.add_subparsers()
     parser_genconfig = subparsers.add_parser('bootstrap')
-    parser_genconfig.add_argument('--config', required=True)
-    parser_genconfig.add_argument('--outdir', required=True)
-    parser_genconfig.add_argument('--meta', default=None)
     parser_genconfig.set_defaults(func=bootstrap)
+
+    parser_manage = subparsers.add_parser('scaleup')
+    parser_manage.add_argument('--iterations', default=10, type=int,
+                               help="number of iterations to modify cluster")
+    parser_manage.set_defaults(func=scaleup)
+
+    parser_manage = subparsers.add_parser('scaledown')
+    parser_manage.add_argument('--iterations', default=10, type=int,
+                               help="number of iterations to modify cluster")
+    parser_manage.set_defaults(func=scaledown)
 
     args = parser.parse_args()
 
