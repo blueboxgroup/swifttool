@@ -41,12 +41,6 @@ def _setup_logger(level=logging.INFO):
     logger.addHandler(log_handler)
 
 
-@parallel
-def _fab_start_swift_services():
-    with hide('running', 'stdout', 'stderr'):
-        sudo("swift-init start all", pty=False, shell=False)
-
-
 def scaleup(args):
     _manage(args)
 
@@ -68,7 +62,6 @@ def bootstrap(args):
     with open(args.config, 'r') as f:
         config = yaml.load(f)
     ringhosts = ringsdef_helper(config, args.meta, args.outdir)
-    execute(_fab_start_swift_services, hosts=ringhosts)
 
 
 def main():
