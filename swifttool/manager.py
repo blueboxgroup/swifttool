@@ -70,7 +70,8 @@ class CapacityManager(object):
             with open(self.def_file, 'w') as stream:
                 yaml.dump(cfg, stream, default_flow_style=False,
                           explicit_start=True)
-            LOG.info("Rings distributed. Sleeping for %d hours 1 minutes" % min_part_hours)
+            LOG.info("Rings distributed. Sleeping for %d "
+                     "hours 1 minutes" % min_part_hours)
             # Sleep for min_part_hours + minute
             time.sleep((min_part_hours * 60 * 60) + 60)
             # Check if rings need to be rebalanced

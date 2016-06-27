@@ -22,7 +22,8 @@ import logging
 import os
 import sys
 import yaml
-from fabric.api import env, execute, hide, parallel, sudo
+
+from fabric.api import env
 
 from swifttool.ring_defintion import ringsdef_helper
 from swifttool.manager import capman_helper
@@ -61,7 +62,7 @@ def bootstrap(args):
         raise Exception("Could not find confguration file '%s'" % args.config)
     with open(args.config, 'r') as f:
         config = yaml.load(f)
-    ringhosts = ringsdef_helper(config, args.meta, args.outdir)
+    ringsdef_helper(config, args.meta, args.outdir)
 
 
 def main():
